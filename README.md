@@ -26,7 +26,6 @@ Final Constellation Output
 
 | Component | Role |
 |---|---|
-| **Preprocessing** | Normalize brightness, reduce noise, enhance star visibility |
 | **Star Extraction** | Detect stars via blob detection (LoG / DoG) |
 | **YOLO** | Fast single-pass primary region detector (YOLOv8m) |
 | **DETR** | Global transformer-based detector, handles dense/overlapping fields |
@@ -227,5 +226,4 @@ All hyperparameters are in [configs/config.yaml](configs/config.yaml):
 - ✅ Detect multiple constellations per image
 - ✅ Supports arbitrary rotation (full ±180° augmentation)
 - ✅ Reduces false positives via 3-model ensemble fusion
-- ✅ Variable brightness and noise tolerance
 - ✅ Interactive web interface for rapid experimentation
