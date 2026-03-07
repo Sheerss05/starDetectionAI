@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Model weights (large binary files)
+models/**/*.pt
+models/**/*.pth
+models/**/*.onnx
+!models/**/.gitkeep
+
+# Dataset images & labels (large files)
+data/constellation_dataset/images/
+data/constellation_dataset/labels/
+data/graph_dataset/graphs/
+data/graph_dataset/split.json
+
+# YOLO run outputs
+runs/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+tensorboard_logs/

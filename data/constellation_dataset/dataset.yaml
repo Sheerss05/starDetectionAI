@@ -1,0 +1,121 @@
+# ─────────────────────────────────────────────────────────────
+# Constellation Dataset — YOLOv8 format
+#
+# Directory structure (place your files here):
+#
+#   constellation_dataset/
+#     images/
+#       train/  ← copy images from your  train/  folder here
+#       val/    ← copy images from your  valid/  folder here
+#       test/   ← copy images from your  test/   folder here
+#     labels/
+#       train/  ← auto-generated YOLO .txt labels (run: python main.py convert)
+#       val/
+#       test/
+#     annotations/
+#       train.json  ← copy JSON from your  train/  folder here
+#       val.json    ← copy JSON from your  valid/  folder here
+#       test.json   ← copy JSON from your  test/   folder here
+# ─────────────────────────────────────────────────────────────
+
+path:  data/constellation_dataset   # dataset root (update to absolute path if needed)
+train: images/train
+val:   images/val
+test:  images/test
+
+# NOTE: YOLO automatically infers label file paths by replacing 'images' with
+# 'labels' in each image path.  Labels must be at:
+#   data/constellation_dataset/labels/{train,val,test}/*.txt
+# See README or run:  python main.py convert --direction coco2yolo ...
+
+nc: 88   # number of constellation classes
+
+names:
+  - Ori    # 0  Orion
+  - UMa    # 1  Ursa Major
+  - UMi    # 2  Ursa Minor
+  - Cas    # 3  Cassiopeia
+  - Cyg    # 4  Cygnus
+  - Leo    # 5  Leo
+  - Sco    # 6  Scorpius
+  - Gem    # 7  Gemini
+  - Tau    # 8  Taurus
+  - Vir    # 9  Virgo
+  - Aql    # 10 Aquila
+  - Per    # 11 Perseus
+  - Lyr    # 12 Lyra
+  - Boo    # 13 Bootes
+  - Peg    # 14 Pegasus
+  - Sgr    # 15 Sagittarius
+  - Aqr    # 16 Aquarius
+  - Cap    # 17 Capricornus
+  - Psc    # 18 Pisces
+  - Ari    # 19 Aries
+  - Lib    # 20 Libra
+  - Andromeda       # 21 Andromeda
+  - Centaurus        # 22 Centaurus
+  - Hydra            # 23 Hydra
+  - Draco            # 24 Draco
+  - Auriga           # 25 Auriga
+  - Canis Major      # 26 Canis Major
+  - Canis Minor      # 27 Canis Minor
+  - Corona Borealis  # 28 Corona Borealis
+  - Ophiuchus        # 29 Ophiuchus
+  - Crv    # 30 Corvus
+  - Crt    # 31 Crater
+  - Ser    # 32 Serpens
+  - Sct    # 33 Scutum
+  - Sge    # 34 Sagitta
+  - Vul    # 35 Vulpecula
+  - Del    # 36 Delphinus
+  - Equ    # 37 Equuleus
+  - Lac    # 38 Lacerta
+  - Cam    # 39 Camelopardalis
+  - Lyn    # 40 Lynx
+  - CVn    # 41 Canes Venatici
+  - Com    # 42 Coma Berenices
+  - Sex    # 43 Sextans
+  - Ant    # 44 Antlia
+  - Pyx    # 45 Pyxis
+  - Vel    # 46 Vela
+  - Car    # 47 Carina
+  - Pup    # 48 Puppis
+  - Col    # 49 Columba
+  - Lep    # 50 Lepus
+  - Eri    # 51 Eridanus
+  - For    # 52 Fornax
+  - Cet    # 53 Cetus
+  - Phe    # 54 Phoenix
+  - Scl    # 55 Sculptor
+  - Gru    # 56 Grus
+  - PsA    # 57 Piscis Austrinus
+  - Mic    # 58 Microscopium
+  - Tel    # 59 Telescopium
+  - Ara    # 60 Ara
+  - CrA    # 61 Corona Australis
+  - Nor    # 62 Norma
+  - Lup    # 63 Lupus
+  - Cir    # 64 Circinus
+  - Cru    # 65 Crux
+  - Mus    # 66 Musca
+  - Cha    # 67 Chamaeleon
+  - Vol    # 68 Volans
+  - Pic    # 69 Pictor
+  - Dor    # 70 Dorado
+  - Ret    # 71 Reticulum
+  - Hor    # 72 Horologium
+  - Cae    # 73 Caelum
+  - Men    # 74 Mensa
+  - Oct    # 75 Octans
+  - Aps    # 76 Apus
+  - TrA    # 77 Triangulum Australe
+  - Pav    # 78 Pavo
+  - Ind    # 79 Indus
+  - Tuc    # 80 Tucana
+  - Hyi    # 81 Hydrus
+  - Tri    # 82 Triangulum
+  - Mon    # 83 Monoceros
+  - Pup2   # 84 placeholder
+  - Vel2   # 85 placeholder
+  - Pyx2   # 86 placeholder
+  - Ant2   # 87 placeholder

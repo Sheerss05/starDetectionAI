@@ -1,0 +1,124 @@
+# ─────────────────────────────────────────────
+# Constellation Recognition AI  —  Master Config
+# ─────────────────────────────────────────────
+
+# ── Preprocessing ─────────────────────────────
+preprocessing:
+  target_size: [640, 640]          # resize before detection
+  gaussian_blur_kernel: 3          # noise reduction kernel size (odd int)
+  clahe_clip_limit: 2.0            # CLAHE contrast enhancement
+  clahe_tile_grid: [8, 8]
+
+# ── Star Extraction (blob-based) ──────────────
+star_extraction:
+  method: "log"                    # "log" (Laplacian of Gaussian) | "dog" (Difference of Gaussian)
+  min_sigma: 1.0
+  max_sigma: 5.0
+  num_sigma: 10
+  threshold: 0.05                  # blob detection threshold
+  overlap: 0.5
+  min_star_brightness: 0.15        # normalised brightness floor
+
+# ── YOLO ──────────────────────────────────────
+yolo:
+  model_weights: "models/yolo/constellation_yolo.pt"
+  pretrained_base: "yolov8m.pt"    # base weights for fine-tuning
+  img_size: 640
+  conf_threshold: 0.30
+  iou_threshold: 0.45
+  device: "cpu"                    # "cuda" | "cpu"
+  num_classes: 17                  # matches actual dataset categories
+
+# ── DETR ──────────────────────────────────────
+detr:
+  model_weights: "models/detr/constellation_detr.pt"
+  pretrained_base: "facebook/detr-resnet-50"
+  img_size: 800
+  conf_threshold: 0.30
+  num_queries: 100
+  device: "cpu"
+  num_classes: 17                  # matches actual dataset categories
+  annotation_file: "data/constellation_dataset/annotations/train.json"
+
+# ── RCNN ──────────────────────────────────────
+rcnn:
+  model_weights: "models/rcnn/constellation_rcnn.pt"
+  pretrained_base: "fasterrcnn_resnet50_fpn"
+  img_size: 800
+  conf_threshold: 0.30
+  iou_threshold: 0.45
+  device: "cpu"
+  num_classes: 17                  # matches actual dataset categories
+  annotation_file: "data/constellation_dataset/annotations/train.json"
+
+# ── Result Fusion ─────────────────────────────
+fusion:
+  min_model_agreement: 2           # at least N detectors must agree
+  iou_merge_threshold: 0.40        # IoU to consider two boxes the same detection
+  gnn_override_threshold: 0.85     # single high-confidence detection acceptance threshold
+
+# ── Training — YOLO ───────────────────────────
+train_yolo:
+  data_yaml: "data/constellation_dataset/dataset.yaml"
+  epochs: 100
+  batch_size: 16
+  img_size: 640
+  lr0: 0.01
+  augment: true
+
+# ── Training — DETR ───────────────────────────
+train_detr:
+  data_root: "data/constellation_dataset"
+  train_json: "data/constellation_dataset/annotations/train.json"
+  val_json:   "data/constellation_dataset/annotations/val.json"
+  test_json:  "data/constellation_dataset/annotations/test.json"
+  train_img_dir: "data/constellation_dataset/images/train"
+  val_img_dir:   "data/constellation_dataset/images/val"
+  test_img_dir:  "data/constellation_dataset/images/test"
+  epochs: 100
+  batch_size: 4
+  lr: 1.0e-4
+  lr_backbone: 1.0e-5
+  weight_decay: 1.0e-4
+  num_workers: 0                   # 0 is safest on Windows
+
+# ── Training — RCNN ───────────────────────────
+train_rcnn:
+  data_root: "data/constellation_dataset"
+  train_json: "data/constellation_dataset/annotations/train.json"
+  val_json:   "data/constellation_dataset/annotations/val.json"
+  train_img_dir: "data/constellation_dataset/images/train"
+  val_img_dir:   "data/constellation_dataset/images/val"
+  epochs: 100
+  batch_size: 4
+  lr: 5.0e-3
+  weight_decay: 5.0e-4
+  num_workers: 0
+
+# ── Constellation labels (dataset categories) ─
+constellations:
+  - Gemini-leo    # background/supercategory class
+  - aquila        # Aquila (Eagle)
+  - bootes        # Boötes (Herdsman)
+  - canis_major   # Canis Major (Great Dog)
+  - canis_minor   # Canis Minor (Little Dog)
+  - cassiopeia    # Cassiopeia (Queen)
+  - cygnus        # Cygnus (Swan)
+  - gemini        # Gemini (Twins)
+  - leo           # Leo (Lion)
+  - lyra          # Lyra (Lyre)
+  - orion         # Orion (Hunter)
+  - sagittarius   # Sagittarius (Archer)
+  - scorpius      # Scorpius (Scorpion)
+  - taurus        # Taurus (Bull)
+  - ursa_major    # Ursa Major (Great Bear)
+  - Andromeda        # Andromeda
+  - Centaurus         # Centaurus
+  - Hydra             # Hydra
+  - Draco             # Draco
+  - Auriga            # Auriga
+  - Canis Major       # Canis Major
+  - Canis Minor       # Canis Minor
+  - Corona Borealis   # Corona Borealis
+  - Ophiuchus         # Ophiuchus
+  # … remaining 58 IAU constellations follow the same pattern
