@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from typing import List
+from typing import List, Dict
 
 import numpy as np
 
@@ -142,6 +142,7 @@ class DetectionFusion:
 
         # ── Step 3: Apply acceptance rules ───────────────────────────────────
         accepted: List[Detection] = []
+        accepted_n_models: List[int] = []   # parallel list — model count per accepted det
         for cluster in candidates:
             label = cluster[0].label
             n_models = len({d.source for d in cluster})
@@ -167,64 +168,109 @@ class DetectionFusion:
                 verified_by_gnn=False,
                 gnn_score=0.0,
             ))
+            accepted_n_models.append(n_models)
 
-        # ── Step 5: Final cross-label NMS to remove spatial duplicates ────────
-        accepted = self._nms(accepted, self.iou_threshold)
+        # ── Step 5: Final cross-label NMS to remove spatial duplicates ─────────
+        # Multi-model agreement detections are prioritised over single-model
+        # high-confidence detections so that e.g. YOLO+DETR→ursa_major is never
+        # suppressed by RCNN-alone→taurus even when RCNN has higher confidence.
+        accepted, accepted_n_models = self._nms(
+            accepted, accepted_n_models, self.iou_threshold
+        )
 
-        accepted.sort(key=lambda d: d.confidence, reverse=True)
-        return accepted
+        # Sort: more model agreement first, then by confidence within same count.
+        paired_out = sorted(
+            zip(accepted, accepted_n_models),
+            key=lambda x: (x[1], x[0].confidence),
+            reverse=True,
+        )
+        return [d for d, _ in paired_out]
 
     # ── helpers ───────────────────────────────────────────────────────────────
 
     def _cluster_boxes(self, dets: List[Detection]) -> List[List[Detection]]:
         """
         Group detections with the same label whose boxes overlap ≥ iou_threshold
-        into clusters (greedy single-link).
+        into clusters using union-find (connected components).
+
+        Unlike greedy single-link, this correctly handles transitive overlaps:
+        if A↔B and B↔C overlap but A↔C do not, all three end up in one cluster.
         """
         if not dets:
             return []
 
-        clusters: List[List[Detection]] = []
-        used = [False] * len(dets)
+        n = len(dets)
+        parent = list(range(n))
 
-        for i, d in enumerate(dets):
-            if used[i]:
-                continue
-            cluster = [d]
-            used[i] = True
-            for j, other in enumerate(dets):
-                if used[j]:
-                    continue
-                if _iou(d.bbox, other.bbox) >= self.iou_threshold:
-                    cluster.append(other)
-                    used[j] = True
-            clusters.append(cluster)
+        def _find(x: int) -> int:
+            while parent[x] != x:
+                parent[x] = parent[parent[x]]  # path compression
+                x = parent[x]
+            return x
 
-        return clusters
+        def _union(x: int, y: int) -> None:
+            parent[_find(x)] = _find(y)
+
+        for i in range(n):
+            for j in range(i + 1, n):
+                if _iou(dets[i].bbox, dets[j].bbox) >= self.iou_threshold:
+                    _union(i, j)
+
+        groups: Dict[int, List[Detection]] = defaultdict(list)
+        for i in range(n):
+            groups[_find(i)].append(dets[i])
+
+        return list(groups.values())
 
     @staticmethod
-    def _nms(dets: List[Detection], iou_thresh: float) -> List[Detection]:
+    def _nms(
+        dets: List[Detection],
+        n_models: List[int],
+        iou_thresh: float,
+    ) -> tuple[List[Detection], List[int]]:
         """
-        Greedy Non-Maximum Suppression across labels to remove spatial duplicates.
+        Greedy Non-Maximum Suppression to remove spatial duplicates across labels.
+
+        Sorting priority: (n_models DESC, confidence DESC) — a detection backed
+        by more models always beats a single-model high-confidence one.  This
+        prevents e.g. RCNN-alone/taurus from suppressing YOLO+DETR/ursa_major
+        simply because RCNN's confidence score is higher.
+
+        Same-label detections are never suppressed — they represent distinct
+        sky regions and were already deduplicated by the clustering step.
         """
         if not dets:
-            return []
+            return [], []
 
-        dets_sorted = sorted(dets, key=lambda d: d.confidence, reverse=True)
-        keep = []
+        # Zip, sort by (n_models DESC, confidence DESC), then unzip.
+        paired = sorted(
+            zip(dets, n_models),
+            key=lambda x: (x[1], x[0].confidence),
+            reverse=True,
+        )
+        dets_sorted = [p[0] for p in paired]
+        nm_sorted   = [p[1] for p in paired]
+
+        keep_dets:  List[Detection] = []
+        keep_nm:    List[int]       = []
         suppressed = [False] * len(dets_sorted)
 
         for i, d in enumerate(dets_sorted):
             if suppressed[i]:
                 continue
-            keep.append(d)
+            keep_dets.append(d)
+            keep_nm.append(nm_sorted[i])
             for j, other in enumerate(dets_sorted[i + 1:], start=i + 1):
                 if suppressed[j]:
+                    continue
+                # Only suppress across different labels; same-label detections
+                # in distinct regions should both be kept.
+                if d.label == other.label:
                     continue
                 if _iou(d.bbox, other.bbox) >= iou_thresh:
                     suppressed[j] = True
 
-        return keep
+        return keep_dets, keep_nm
 
 
 # ──────────────────────────────────────────────────────────────────────────────

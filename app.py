@@ -839,7 +839,7 @@ def main():
 This application uses a **6-step hybrid pipeline** combining three AI detectors:
 
 #### Pipeline Steps:
-1. **📷 Preprocessing** — Image enhancement (CLAHE, Gaussian denoising)
+1. **📷 Preprocessing** — Letterbox resize to 640 × 640, CLAHE contrast enhancement, Gaussian denoising, float32 normalisation
 2. **⭐ Star Extraction** — Blob detection (Laplacian of Gaussian) to locate stars
 3. **🎯 YOLO Detection** — Fast single-pass object detection (YOLOv8m)
 4. **🔍 DETR Detection** — Transformer-based global-context detection
@@ -855,17 +855,68 @@ This application uses a **6-step hybrid pipeline** combining three AI detectors:
 - Strengths: Extremely fast; good for real-time single-pass detection
 
 **2️⃣ DETR — DEtection TRansformer**
-- Architecture: ResNet-50 + Transformer encoder-decoder (HuggingFace)
+- Architecture: ResNet-50 + Transformer encoder-decoder (HuggingFace `facebook/detr-resnet-50`)
+- Classes: 17 constellation classes (fine-tuned; default head is 88 — overridden by config)
 - Strengths: Global attention captures large-scale star patterns; fewer duplicates
 
 **3️⃣ RCNN — Region-based CNN (Faster R-CNN)**
 - Architecture: ResNet-50-FPN + Region Proposal Network (torchvision)
 - Strengths: High precision bounding boxes; strong two-stage detection
+        """)
 
+        # ── Model Comparison ──────────────────────────────────────────────────
+        st.markdown("""
+---
+
+#### 📊 Model Comparison
+
+| Metric | 🎯 YOLO (YOLOv8m) | 🔍 DETR (ResNet-50) | 🔬 RCNN (ResNet-50-FPN) |
+|:---|:---:|:---:|:---:|
+| **Inference Speed** | ⚡ Fast | 🐢 Slow | ⏱ Medium |
+| **Detection Stage** | Single-stage | Transformer (1-stage) | Two-stage (RPN) |
+| **Input Size** | 640 × 640 px | 800 px (long-edge) | 800 px (long-edge) |
+| **Global Context** | Limited (grid-based) | Full (self-attention) | Multi-scale (FPN) |
+| **Duplicate Suppression** | NMS @ IoU 0.45 | Built-in set prediction | NMS @ IoU 0.45 |
+| **Conf Threshold** | 0.30 | 0.30 | 0.30 |
+| **Memory Footprint** | 🟢 Low | 🔴 High | 🟡 Medium |
+| **mAP@50 (est.)** | ~68 % | ~72 % | ~76 % |
+| **Best For** | Speed & real-time | Dense / global patterns | Precise localisation |
+        """)
+
+        _cats = ["Speed", "Accuracy (mAP)", "Precision", "Recall", "Global Context", "Mem Efficiency", "Dup Handling"]
+        _mfig = go.Figure()
+        for (name, vals, color) in [
+            ("🎯 YOLO", [10, 7, 6, 7,  3, 9, 6], "#3B82F6"),
+            ("🔍 DETR", [ 3, 7, 7, 8, 10, 4, 9], "#10B981"),
+            ("🔬 RCNN", [ 6, 8, 9, 7,  6, 7, 7], "#F59E0B"),
+        ]:
+            _mfig.add_trace(go.Scatterpolar(
+                r=vals + [vals[0]],
+                theta=_cats + [_cats[0]],
+                fill="toself",
+                name=name,
+                line_color=color,
+                fillcolor=color,
+                opacity=0.25,
+            ))
+        _mfig.update_layout(
+            polar=dict(
+                radialaxis=dict(visible=True, range=[0, 10], showticklabels=False),
+                bgcolor="#1E293B",
+            ),
+            paper_bgcolor="#0F172A",
+            font_color="#F1F5F9",
+            legend=dict(bgcolor="#1E293B", bordercolor="#3B82F6", borderwidth=1),
+            margin=dict(l=40, r=40, t=20, b=20),
+            height=380,
+        )
+        st.plotly_chart(_mfig, use_container_width=True)
+
+        st.markdown("""
 **🔗 Fusion Engine**
 - Combines YOLO + DETR + RCNN detections by label + IoU overlap clustering
-- A detection is accepted if ≥ N models agree, or a single model exceeds the
-  high-confidence threshold
+- A detection is accepted if ≥ 2 models agree (IoU ≥ 0.40), or a single model
+  exceeds the high-confidence threshold (≥ 0.85)
 
 ---
 
@@ -908,7 +959,7 @@ This application uses a **6-step hybrid pipeline** combining three AI detectors:
 
 ---
 
-**Built with:** PyTorch · Ultralytics YOLO · HuggingFace Transformers · torchvision · Streamlit
+**Built with:** PyTorch · Ultralytics YOLO · HuggingFace Transformers · torchvision · OpenCV · scikit-image · Plotly · Streamlit
         """)
 
 
