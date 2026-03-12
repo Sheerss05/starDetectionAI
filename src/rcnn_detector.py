@@ -106,8 +106,20 @@ class RCNNDetector:
         with torch.no_grad():
             outputs = self.model([tensor])
 
+        # TorchScript FasterRCNN returns Tuple[Dict[losses], List[Dict[detections]]]
+        # Regular (eager) FasterRCNN returns List[Dict[detections]] directly.
+        if (
+            isinstance(outputs, (tuple, list))
+            and len(outputs) == 2
+            and isinstance(outputs[0], dict)
+            and isinstance(outputs[1], (list, tuple))
+        ):
+            detection_outputs = outputs[1]   # scripted model
+        else:
+            detection_outputs = outputs      # eager model
+
         detections: List[Detection] = []
-        for output in outputs:
+        for output in detection_outputs:
             scores = output["scores"].cpu().numpy()
             labels = output["labels"].cpu().numpy()
             boxes  = output["boxes"].cpu().numpy()   # xyxy
@@ -129,12 +141,21 @@ class RCNNDetector:
                     source="rcnn",
                 ))
 
-        return detections
+        # Keep at most 1 detection per constellation label (highest confidence first)
+        label_counts: dict = {}
+        filtered: List[Detection] = []
+        for d in sorted(detections, key=lambda x: x.confidence, reverse=True):
+            count = label_counts.get(d.label, 0)
+            if count < 1:
+                filtered.append(d)
+                label_counts[d.label] = count + 1
+        return filtered
 
     # ── model loading ─────────────────────────────────────────────────────────
 
     def _load_model(self, weights_path: str | Path, base: str):
         try:
+            import torchvision  # must be imported first to register torchvision C++ ops
             from torchvision.models.detection import (
                 fasterrcnn_resnet50_fpn,
                 fasterrcnn_resnet50_fpn_v2,
@@ -144,26 +165,41 @@ class RCNNDetector:
             logger.error("torchvision not installed. Install with: pip install torchvision")
             return None
 
-        # Background is class index 0 → total = num_classes + 1
-        num_classes_with_bg = self.num_classes + 1
-
-        # Build backbone with random weights; will be replaced below
-        if base == "fasterrcnn_resnet50_fpn_v2":
-            model = fasterrcnn_resnet50_fpn_v2(weights=None)
-        else:
-            model = fasterrcnn_resnet50_fpn(weights=None)
-
-        # Replace the box predictor head to match num_classes
-        in_features = model.roi_heads.box_predictor.cls_score.in_features
-        model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes_with_bg)
-
         weights_path = Path(weights_path)
-        if weights_path.exists():
-            logger.info(f"Loading RCNN weights from {weights_path}")
+        if not weights_path.exists():
+            logger.warning(
+                f"RCNN weights not found at {weights_path}. "
+                "Using un-trained weights — predictions will be meaningless."
+            )
+            # Fall through to build a random-weight model
+        else:
+            # ── Try TorchScript archive first (.pt saved via torch.jit.script) ──
             try:
-                state = torch.load(weights_path, map_location=self.device, weights_only=True)
+                model = torch.jit.load(str(weights_path), map_location=self.device)
+                model.eval()
+                logger.info(f"Loaded RCNN TorchScript model from {weights_path}")
+                return model
+            except Exception as jit_exc:
+                logger.debug(f"TorchScript load failed ({jit_exc}), trying state-dict load …")
+
+            # ── Fall back: state-dict (.pth / checkpoint .pt) ──────────────────
+            # Background is class index 0 → total = num_classes + 1
+            num_classes_with_bg = self.num_classes + 1
+
+            if base == "fasterrcnn_resnet50_fpn_v2":
+                model = fasterrcnn_resnet50_fpn_v2(weights=None)
+            else:
+                model = fasterrcnn_resnet50_fpn(weights=None)
+
+            in_features = model.roi_heads.box_predictor.cls_score.in_features
+            model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes_with_bg)
+
+            try:
+                state = torch.load(weights_path, map_location=self.device, weights_only=False)
                 # Unwrap training-checkpoint envelope if present
-                if isinstance(state, dict) and "epoch" in state and "model" in state:
+                if isinstance(state, dict) and "model_state_dict" in state:
+                    state = state["model_state_dict"]
+                elif isinstance(state, dict) and "model" in state:
                     state = state["model"]
                 result = model.load_state_dict(state, strict=False)
                 logger.info(
@@ -172,12 +208,19 @@ class RCNNDetector:
                 )
             except Exception as exc:
                 logger.warning(f"Failed to load RCNN weights: {exc}. Using random weights.")
-        else:
-            logger.warning(
-                f"RCNN weights not found at {weights_path}. "
-                "Using un-trained weights — predictions will be meaningless."
-            )
 
+            model.eval()
+            model.to(self.device)
+            return model
+
+        # No weights file — build untrained model
+        num_classes_with_bg = self.num_classes + 1
+        if base == "fasterrcnn_resnet50_fpn_v2":
+            model = fasterrcnn_resnet50_fpn_v2(weights=None)
+        else:
+            model = fasterrcnn_resnet50_fpn(weights=None)
+        in_features = model.roi_heads.box_predictor.cls_score.in_features
+        model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes_with_bg)
         model.eval()
         model.to(self.device)
         return model

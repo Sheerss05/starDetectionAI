@@ -108,6 +108,48 @@ def load_config() -> dict:
             return yaml.safe_load(f) or {}
     return {}
 
+# ── Image enhancement helper ─────────────────────────────────────────────────
+def apply_enhancements(
+    img_rgb: np.ndarray,
+    use_blur: bool, blur_kernel: int,
+    use_clahe: bool, clahe_clip: float, clahe_tile: int,
+    use_gamma: bool, gamma: float,
+    use_sharpen: bool, sharpen_strength: float,
+) -> np.ndarray:
+    """Apply Gaussian blur → CLAHE → Gamma → Sharpening to an RGB uint8 image."""
+    img = img_rgb.copy()
+
+    # 1. Gaussian Blur — remove noise before contrast boosting
+    if use_blur and blur_kernel > 1:
+        img = cv2.GaussianBlur(img, (blur_kernel, blur_kernel), sigmaX=0)
+
+    # 2. CLAHE — boost local contrast on the luminance channel
+    if use_clahe:
+        img_lab = cv2.cvtColor(img, cv2.COLOR_RGB2LAB)
+        l_ch, a_ch, b_ch_lab = cv2.split(img_lab)
+        _clahe = cv2.createCLAHE(
+            clipLimit=clahe_clip, tileGridSize=(clahe_tile, clahe_tile)
+        )
+        l_ch = _clahe.apply(l_ch)
+        img = cv2.cvtColor(cv2.merge([l_ch, a_ch, b_ch_lab]), cv2.COLOR_LAB2RGB)
+
+    # 3. Gamma Correction — brighten dim stars
+    if use_gamma and abs(gamma - 1.0) > 1e-3:
+        inv_gamma = 1.0 / gamma
+        table = np.array(
+            [((i / 255.0) ** inv_gamma) * 255 for i in range(256)], dtype=np.uint8
+        )
+        img = cv2.LUT(img, table)
+
+    # 4. Sharpening — unsharp mask to make star edges more distinct
+    if use_sharpen and sharpen_strength > 0:
+        blurred_s = cv2.GaussianBlur(img, (0, 0), sigmaX=1.0)
+        img = cv2.addWeighted(
+            img, 1.0 + sharpen_strength, blurred_s, -sharpen_strength, 0
+        )
+        img = np.clip(img, 0, 255).astype(np.uint8)
+
+    return img
 
 # ── Drawing helpers ───────────────────────────────────────────────────────────
 PALETTE = [
@@ -255,6 +297,66 @@ def main():
             st.warning("⚠️ Enable at least one detector.")
 
         st.markdown("---")
+        st.subheader("🌟 Image Enhancement")
+
+        use_sharpen = st.checkbox(
+            "🔪 Sharpening", value=False,
+            help="Unsharp-mask to make star edges more distinct for detection.",
+        )
+        if use_sharpen:
+            sharpen_strength = st.slider(
+                "Sharpen Strength", 0.1, 2.0, 0.5, step=0.1, key="sharpen_str",
+                help="Higher = stronger edge enhancement.",
+            )
+        else:
+            sharpen_strength = 0.0
+
+        use_gamma = st.checkbox(
+            "☀️ Gamma Correction", value=False,
+            help="Brighten dim stars by adjusting the gamma curve.",
+        )
+        if use_gamma:
+            gamma = st.slider(
+                "Gamma", 0.5, 3.0, 1.0, step=0.1, key="gamma",
+                help="< 1.0 darkens, > 1.0 brightens. 1.0 = no change.",
+            )
+        else:
+            gamma = 1.0
+
+        use_clahe = st.checkbox(
+            "✨ CLAHE Contrast Enhancement", value=False,
+            help="Adaptive histogram equalisation to boost faint-star visibility.",
+        )
+        if use_clahe:
+            clahe_clip = st.slider(
+                "CLAHE Clip Limit", 1.0, 8.0,
+                float(config.get("preprocessing", {}).get("clahe_clip_limit", 2.0)),
+                step=0.5, key="clahe_clip",
+                help="Higher values = more aggressive contrast boost.",
+            )
+            clahe_tile = st.slider(
+                "CLAHE Tile Size", 4, 16,
+                int(config.get("preprocessing", {}).get("clahe_tile_grid", [8, 8])[0]),
+                step=2, key="clahe_tile",
+                help="Context tile size for local histogram equalisation.",
+            )
+        else:
+            clahe_clip = 0.0
+            clahe_tile = 8
+
+        use_blur = st.checkbox(
+            "🌫️ Gaussian Blur (Noise Reduction)", value=False,
+            help="Smooth pixel-level noise before detection.",
+        )
+        if use_blur:
+            blur_kernel = st.select_slider(
+                "Blur Kernel Size", options=[3, 5, 7, 9], value=3, key="blur_kernel",
+                help="Larger kernel = stronger blurring.",
+            )
+        else:
+            blur_kernel = 1
+
+        st.markdown("---")
         st.subheader("Fusion Settings")
         use_fusion = st.checkbox("🔗 Enable Fusion", value=True,
                                   help="Combine results from all active detectors. Disable to return raw detections from each model independently.")
@@ -310,6 +412,12 @@ def main():
                         else:
                             if use_fusion:
                                 st.session_state.pipeline.fusion.min_agreement = min_agreement
+                            # Apply CLAHE + blur settings to preprocessor
+                            st.session_state.pipeline.preprocessor.gaussian_kernel = blur_kernel
+                            st.session_state.pipeline.preprocessor.clahe = cv2.createCLAHE(
+                                clipLimit=clahe_clip if use_clahe else 0.0,
+                                tileGridSize=(clahe_tile, clahe_tile),
+                            )
                             if use_yolo:
                                 st.session_state.pipeline.yolo.conf_threshold = yolo_conf
                             if use_detr:
@@ -331,8 +439,18 @@ def main():
                             status_text.text("🎯 Step 3/6: YOLO detection…")
                             progress_bar.progress(0.50)
 
+                            # Apply gamma + sharpening to the input image
+                            # (CLAHE + blur are handled inside the preprocessor)
+                            _input_rgb = apply_enhancements(
+                                st.session_state.uploaded_image,
+                                use_blur=False, blur_kernel=1,
+                                use_clahe=False, clahe_clip=0.0, clahe_tile=8,
+                                use_gamma=use_gamma, gamma=gamma,
+                                use_sharpen=use_sharpen, sharpen_strength=sharpen_strength,
+                            )
+                            _input_bgr = cv2.cvtColor(_input_rgb, cv2.COLOR_RGB2BGR)
                             result = st.session_state.pipeline.run(
-                                st.session_state.uploaded_image_bgr,
+                                _input_bgr,
                                 use_yolo=use_yolo,
                                 use_detr=use_detr,
                                 use_rcnn=use_rcnn,
@@ -367,9 +485,22 @@ def main():
 
         with col_prev:
             if st.session_state.uploaded_image is not None:
-                pil_img = Image.fromarray(st.session_state.uploaded_image)
-                st.image(pil_img, caption="Uploaded Image", use_container_width=True)
-                st.info(f"📐 {pil_img.size[0]} × {pil_img.size[1]} px")
+                img_preview = apply_enhancements(
+                    st.session_state.uploaded_image,
+                    use_blur=use_blur, blur_kernel=blur_kernel,
+                    use_clahe=use_clahe, clahe_clip=clahe_clip, clahe_tile=clahe_tile,
+                    use_gamma=use_gamma, gamma=gamma,
+                    use_sharpen=use_sharpen, sharpen_strength=sharpen_strength,
+                )
+                active = []
+                if use_blur:    active.append(f"Blur k={blur_kernel}")
+                if use_clahe:   active.append(f"CLAHE clip={clahe_clip} tile={clahe_tile}")
+                if use_gamma:   active.append(f"Gamma={gamma:.1f}")
+                if use_sharpen: active.append(f"Sharpen={sharpen_strength:.1f}")
+                caption = ("Preview — " + ", ".join(active)) if active else "Preview"
+                st.image(Image.fromarray(img_preview), caption=caption, use_container_width=True)
+                orig = Image.fromarray(st.session_state.uploaded_image)
+                st.info(f"📐 {orig.size[0]} × {orig.size[1]} px")
 
         # ── Summary metrics ───────────────────────────────────────────────────
         if st.session_state.result:

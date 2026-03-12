@@ -60,7 +60,7 @@ fusion:
 # ── Training — YOLO ───────────────────────────
 train_yolo:
   data_yaml: "data/constellation_dataset/dataset.yaml"
-  epochs: 100
+  epochs: 200
   batch_size: 16
   img_size: 640
   lr0: 0.01

@@ -43,9 +43,18 @@ def train(cfg: dict) -> None:
     yolo_cfg   = cfg.get("yolo", {})
     train_cfg  = cfg.get("train_yolo", {})
 
-    # ── Model initialisation ──────────────────────────────────────────────────
-    weights = yolo_cfg.get("pretrained_base", "yolov8m.pt")
-    logger.info(f"Loading base model: {weights}")
+    # ── Resume detection ──────────────────────────────────────────────────────
+    # Use last.pt as starting weights if available (works cross-machine).
+    # resume=True is intentionally avoided because it relies on absolute paths
+    # stored inside the checkpoint that are only valid on the original machine.
+    checkpoint = Path("models/yolo/constellation_run/weights/last.pt")
+    if checkpoint.exists():
+        logger.info(f"Loading checkpoint weights from: {checkpoint}")
+        weights = str(checkpoint)
+    else:
+        weights = yolo_cfg.get("pretrained_base", "yolov8m.pt")
+        logger.info(f"No checkpoint found. Loading base model: {weights}")
+
     model = YOLO(weights)
 
     # ── Build / validate dataset.yaml ────────────────────────────────────────

@@ -168,7 +168,15 @@ class YOLODetector:
                     source="yolo",
                 ))
 
-        return detections
+        # Keep at most 1 detection per constellation label (highest confidence first)
+        label_counts: dict = {}
+        filtered: List[Detection] = []
+        for d in sorted(detections, key=lambda x: x.confidence, reverse=True):
+            count = label_counts.get(d.label, 0)
+            if count < 1:
+                filtered.append(d)
+                label_counts[d.label] = count + 1
+        return filtered
 
     # ── model loading ─────────────────────────────────────────────────────────
 
