@@ -14,8 +14,6 @@ if sys.platform == "win32":
 
 import torch
 import torchvision
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
 
 from torch.utils.data import Dataset, DataLoader
 from PIL import Image
@@ -23,8 +21,6 @@ from pycocotools.coco import COCO
 import torchvision.transforms as T
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor, FasterRCNN_ResNet50_FPN_Weights
 import torch.optim as optim
-import tkinter as tk
-from tkinter import filedialog
 from tqdm import tqdm
 
 # =====================================
@@ -337,74 +333,3 @@ model.eval()
 scripted = torch.jit.script(model)
 scripted.save("constellation_rcnn.pt")
 print("Model saved as constellation_rcnn.pt")
-
-# =====================================
-# 8. USER IMAGE UPLOAD
-# =====================================
-
-def detect_uploaded_image(model, device, threshold=0.5):
-
-    model.eval()
-
-    root = tk.Tk()
-    root.withdraw()
-
-    file_path = filedialog.askopenfilename(
-        title="Select a sky image",
-        filetypes=[("Image files", "*.jpg *.jpeg *.png")]
-    )
-
-    if not file_path:
-        print("No image selected.")
-        return
-
-    img = Image.open(file_path).convert("RGB")
-
-    transform = T.Compose([T.ToTensor()])
-    img_tensor = transform(img).to(device)
-
-    with torch.no_grad():
-        prediction = model([img_tensor])[0]
-
-    fig, ax = plt.subplots(1, figsize=(12,8))
-    ax.imshow(img)
-
-    boxes = prediction["boxes"].cpu().numpy()
-    scores = prediction["scores"].cpu().numpy()
-
-    for box, score in zip(boxes, scores):
-
-        if score < threshold:
-            continue
-
-        xmin, ymin, xmax, ymax = box
-
-        rect = patches.Rectangle(
-            (xmin, ymin),
-            xmax - xmin,
-            ymax - ymin,
-            linewidth=2,
-            edgecolor='red',
-            facecolor='none'
-        )
-
-        ax.add_patch(rect)
-
-        ax.text(
-            xmin,
-            ymin - 5,
-            f"{score:.2f}",
-            color="white",
-            fontsize=12,
-            bbox=dict(facecolor="red", alpha=0.5)
-        )
-
-    plt.title("Constellation Detection Result")
-    plt.axis("off")
-    plt.show()
-
-# =====================================
-# 9. RUN DETECTION
-# =====================================
-
-detect_uploaded_image(model, device)
