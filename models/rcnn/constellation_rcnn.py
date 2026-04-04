@@ -14,8 +14,6 @@ if sys.platform == "win32":
 
 import torch
 import torchvision
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
 
 from torch.utils.data import Dataset, DataLoader
 from PIL import Image
@@ -23,8 +21,6 @@ from pycocotools.coco import COCO
 import torchvision.transforms as T
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor, FasterRCNN_ResNet50_FPN_Weights
 import torch.optim as optim
-import tkinter as tk
-from tkinter import filedialog
 from tqdm import tqdm
 
 # =====================================
@@ -174,12 +170,13 @@ params = [p for p in model.parameters() if p.requires_grad]
 
 optimizer = optim.Adam(params, lr=1e-4, weight_decay=1e-4)
 
-num_epochs = 50
+num_epochs = 100
 
-lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(
+lr_scheduler = optim.lr_scheduler.LinearLR(
     optimizer,
-    T_max=num_epochs,
-    eta_min=1e-6
+    start_factor=1.0,
+    end_factor=0.01,
+    total_iters=num_epochs
 )
 
 # =====================================
@@ -191,7 +188,23 @@ _checkpoints = sorted(
     [f for f in os.listdir(".") if f.startswith("checkpoint_epoch_") and f.endswith(".pth")],
     key=lambda f: int(f.split("_")[-1].split(".")[0])
 )
-if _checkpoints:
+_resume_checkpoint = "checkpoint_resume_latest.pth"
+
+if os.path.exists(_resume_checkpoint):
+    print(f"Found resume checkpoint: {_resume_checkpoint} — resuming...")
+    _ckpt = torch.load(_resume_checkpoint, map_location=device)
+    model.load_state_dict(_ckpt["model_state_dict"])
+    optimizer.load_state_dict(_ckpt["optimizer_state_dict"])
+    if "scheduler_state_dict" in _ckpt:
+        lr_scheduler.load_state_dict(_ckpt["scheduler_state_dict"])
+    start_epoch = _ckpt["epoch"]
+    current_epoch = _ckpt.get("current_epoch", start_epoch + 1)
+    completed_batches = _ckpt.get("completed_batches", 0)
+    print(
+        f"Resumed interrupted epoch {current_epoch} from batch {completed_batches} "
+        f"using latest saved weights"
+    )
+elif _checkpoints:
     _latest = _checkpoints[-1]
     print(f"Found checkpoint: {_latest} — resuming...")
     _ckpt = torch.load(_latest, map_location=device)
@@ -232,6 +245,7 @@ for epoch in range(start_epoch, num_epochs):
     model.train()
     epoch_loss = 0.0
     epoch_start = time.time()
+    batches_processed = 0
 
     pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{num_epochs}", unit="img", leave=True)
 
@@ -251,22 +265,28 @@ for epoch in range(start_epoch, num_epochs):
         scaler.update()
 
         epoch_loss += losses.item()
+        batches_processed += 1
         pbar.set_postfix({"loss": f"{losses.item():.4f}"})
 
         if _interrupted:
             break
 
-    lr_scheduler.step()
+    epoch_completed = (batches_processed == len(train_loader)) and not _interrupted
+
+    if epoch_completed:
+        lr_scheduler.step()
 
     elapsed   = time.time() - epoch_start
-    avg_loss  = epoch_loss / len(train_loader)
+    avg_loss  = epoch_loss / max(batches_processed, 1)
     remaining = (num_epochs - epoch - 1) * elapsed
+    current_lr = optimizer.param_groups[0]["lr"]
     print(
         f"Epoch {epoch+1}/{num_epochs} | Loss: {avg_loss:.4f} "
-        f"| {elapsed/60:.1f} min/epoch | ETA: {remaining/3600:.1f} hr"
+        f"| LR: {current_lr:.8f} | {elapsed/60:.1f} min/epoch "
+        f"| ETA: {remaining/3600:.1f} hr"
     )
 
-    if True or _interrupted:  # save every epoch
+    if epoch_completed:
         checkpoint_path = f"checkpoint_epoch_{epoch+1}.pth"
         torch.save({
             "epoch": epoch + 1,
@@ -276,6 +296,19 @@ for epoch in range(start_epoch, num_epochs):
             "loss": avg_loss,
         }, checkpoint_path)
         print(f"Checkpoint saved: {checkpoint_path}")
+        if os.path.exists(_resume_checkpoint):
+            os.remove(_resume_checkpoint)
+    elif _interrupted:
+        torch.save({
+            "epoch": epoch,
+            "current_epoch": epoch + 1,
+            "completed_batches": batches_processed,
+            "model_state_dict": model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+            "scheduler_state_dict": lr_scheduler.state_dict(),
+            "loss": avg_loss,
+        }, _resume_checkpoint)
+        print(f"Resume checkpoint saved: {_resume_checkpoint}")
 
     if (epoch + 1) <= 15:
         model.eval()
@@ -300,74 +333,3 @@ model.eval()
 scripted = torch.jit.script(model)
 scripted.save("constellation_rcnn.pt")
 print("Model saved as constellation_rcnn.pt")
-
-# =====================================
-# 8. USER IMAGE UPLOAD
-# =====================================
-
-def detect_uploaded_image(model, device, threshold=0.5):
-
-    model.eval()
-
-    root = tk.Tk()
-    root.withdraw()
-
-    file_path = filedialog.askopenfilename(
-        title="Select a sky image",
-        filetypes=[("Image files", "*.jpg *.jpeg *.png")]
-    )
-
-    if not file_path:
-        print("No image selected.")
-        return
-
-    img = Image.open(file_path).convert("RGB")
-
-    transform = T.Compose([T.ToTensor()])
-    img_tensor = transform(img).to(device)
-
-    with torch.no_grad():
-        prediction = model([img_tensor])[0]
-
-    fig, ax = plt.subplots(1, figsize=(12,8))
-    ax.imshow(img)
-
-    boxes = prediction["boxes"].cpu().numpy()
-    scores = prediction["scores"].cpu().numpy()
-
-    for box, score in zip(boxes, scores):
-
-        if score < threshold:
-            continue
-
-        xmin, ymin, xmax, ymax = box
-
-        rect = patches.Rectangle(
-            (xmin, ymin),
-            xmax - xmin,
-            ymax - ymin,
-            linewidth=2,
-            edgecolor='red',
-            facecolor='none'
-        )
-
-        ax.add_patch(rect)
-
-        ax.text(
-            xmin,
-            ymin - 5,
-            f"{score:.2f}",
-            color="white",
-            fontsize=12,
-            bbox=dict(facecolor="red", alpha=0.5)
-        )
-
-    plt.title("Constellation Detection Result")
-    plt.axis("off")
-    plt.show()
-
-# =====================================
-# 9. RUN DETECTION
-# =====================================
-
-detect_uploaded_image(model, device)
