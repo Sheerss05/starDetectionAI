@@ -59,6 +59,7 @@ class PipelineResult:
 
     # ── Diagnostics ───────────────────────────────────────────────────────────
     elapsed_seconds: float = 0.0
+    model_times: Dict[str, float] = field(default_factory=dict)
     image_path: Optional[str] = None
 
     # ── Public helpers ────────────────────────────────────────────────────────
@@ -76,6 +77,9 @@ class PipelineResult:
             f"RCNN raw     : {len(self.rcnn_raw)}",
             f"Final dets   : {len(self.detections)}",
             f"Time (s)     : {self.elapsed_seconds:.2f}",
+            f"YOLO (ms)    : {self.model_times.get('yolo', 0.0) * 1000:.1f}",
+            f"DETR (ms)    : {self.model_times.get('detr', 0.0) * 1000:.1f}",
+            f"RCNN (ms)    : {self.model_times.get('rcnn', 0.0) * 1000:.1f}",
             "",
             "Detections:",
         ]
@@ -211,32 +215,41 @@ class ConstellationPipeline:
         # The CLAHE-enhanced `preprocessed` image is used only for star extraction.
         if use_yolo:
             logger.debug("Step 3: YOLO detection")
+            _t_yolo = time.perf_counter()
             yolo_dets = self.yolo.detect(original_rgb)
+            result.model_times["yolo"] = time.perf_counter() - _t_yolo
             result.yolo_raw = yolo_dets
             logger.debug(f"  YOLO: {len(yolo_dets)} candidate(s)")
         else:
             logger.debug("Step 3: YOLO detection skipped (disabled)")
+            result.model_times["yolo"] = 0.0
             yolo_dets = []
 
         # ── Step 4 — DETR Detection ───────────────────────────────────────────
         # Same reason as YOLO: use original_rgb instead of CLAHE-preprocessed.
         if use_detr:
             logger.debug("Step 4: DETR detection")
+            _t_detr = time.perf_counter()
             detr_dets = self.detr.detect(original_rgb)
+            result.model_times["detr"] = time.perf_counter() - _t_detr
             result.detr_raw = detr_dets
             logger.debug(f"  DETR: {len(detr_dets)} candidate(s)")
         else:
             logger.debug("Step 4: DETR detection skipped (disabled)")
+            result.model_times["detr"] = 0.0
             detr_dets = []
 
         # ── Step 5 — RCNN Detection ───────────────────────────────────────────
         if use_rcnn:
             logger.debug("Step 5: RCNN detection")
+            _t_rcnn = time.perf_counter()
             rcnn_dets = self.rcnn.detect(original_rgb)
+            result.model_times["rcnn"] = time.perf_counter() - _t_rcnn
             result.rcnn_raw = rcnn_dets
             logger.debug(f"  RCNN: {len(rcnn_dets)} candidate(s)")
         else:
             logger.debug("Step 5: RCNN detection skipped (disabled)")
+            result.model_times["rcnn"] = 0.0
             rcnn_dets = []
 
         # ── Step 6 — Result Fusion ────────────────────────────────────────────

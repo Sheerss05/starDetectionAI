@@ -127,8 +127,17 @@ class RCNNDetector:
             for score, cls_id, box in zip(scores, labels, boxes):
                 if float(score) < self.conf_threshold:
                     continue
-                # Faster R-CNN label indices start at 1 (0 = background)
-                idx = int(cls_id) - 1
+                cls_id_int = int(cls_id)
+                # TorchScript/eager exports are not always consistent about class indexing.
+                # Handle both:
+                # - 1-based foreground labels (0 is background)
+                # - 0-based foreground labels
+                if 0 <= cls_id_int < self.num_classes:
+                    idx = cls_id_int
+                elif 1 <= cls_id_int <= self.num_classes:
+                    idx = cls_id_int - 1
+                else:
+                    idx = -1
                 label = (
                     self.class_names[idx]
                     if 0 <= idx < len(self.class_names)
