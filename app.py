@@ -11,6 +11,8 @@ import time
 import plotly.graph_objects as go
 import pandas as pd
 from pathlib import Path
+from urllib.parse import urlparse
+from urllib.request import urlretrieve
 import yaml
 
 # Import pipeline
@@ -95,10 +97,104 @@ if 'pipeline_device' not in st.session_state:
 @st.cache_resource
 def load_pipeline(config_path: str, device: str = "cpu"):
     try:
+        _ensure_model_weights(config_path)
         return ConstellationPipeline(config_path=config_path, device=device)
     except Exception as exc:
         st.error(f"Error loading pipeline: {exc}")
         return None
+
+
+def _read_config_from_path(config_path: str) -> dict:
+    path = Path(config_path)
+    if not path.exists():
+        return {}
+    with open(path) as f:
+        return yaml.safe_load(f) or {}
+
+
+def _is_http_url(url: str) -> bool:
+    try:
+        p = urlparse(url)
+        return p.scheme in {"http", "https"} and bool(p.netloc)
+    except Exception:
+        return False
+
+
+def _download_file(url: str, dest: Path) -> None:
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    urlretrieve(url, dest)
+
+
+def _get_model_download_url(model_key: str, cfg_section: dict) -> str:
+    # Priority:
+    # 1) Streamlit secrets [model_urls]
+    # 2) Environment variables via st.secrets root entries
+    # 3) config.yaml per-model download_url
+    model_urls = st.secrets.get("model_urls", {})
+    if isinstance(model_urls, dict):
+        url_from_secrets = model_urls.get(model_key)
+        if isinstance(url_from_secrets, str) and _is_http_url(url_from_secrets):
+            return url_from_secrets
+
+    env_key = f"STARAI_{model_key.upper()}_URL"
+    url_from_root_secrets = st.secrets.get(env_key)
+    if isinstance(url_from_root_secrets, str) and _is_http_url(url_from_root_secrets):
+        return url_from_root_secrets
+
+    cfg_url = cfg_section.get("download_url") if isinstance(cfg_section, dict) else None
+    if isinstance(cfg_url, str) and _is_http_url(cfg_url):
+        return cfg_url
+
+    return ""
+
+
+def _ensure_model_weights(config_path: str) -> None:
+    cfg = _read_config_from_path(config_path)
+    if not cfg:
+        return
+
+    specs = [
+        ("yolo", cfg.get("yolo", {})),
+        ("detr", cfg.get("detr", {})),
+        ("rcnn", cfg.get("rcnn", {})),
+    ]
+
+    downloaded = []
+    missing_without_url = []
+
+    for model_key, section in specs:
+        if not isinstance(section, dict):
+            continue
+        weights_rel = section.get("model_weights")
+        if not weights_rel:
+            continue
+
+        weights_path = Path(weights_rel)
+        if weights_path.exists():
+            continue
+
+        url = _get_model_download_url(model_key, section)
+        if not url:
+            missing_without_url.append(model_key)
+            continue
+
+        try:
+            _download_file(url, weights_path)
+            downloaded.append(f"{model_key.upper()} -> {weights_path}")
+        except Exception as exc:
+            st.warning(f"Could not download {model_key.upper()} weights: {exc}")
+
+    if downloaded:
+        st.info("Downloaded model weights: " + ", ".join(downloaded))
+
+    if missing_without_url:
+        msg = (
+            "Missing trained model files for: "
+            + ", ".join(m.upper() for m in missing_without_url)
+            + ". Configure URLs in Streamlit secrets under [model_urls]"
+            + " so deployment can download large .pt files."
+        )
+        st.warning(msg)
 
 
 def load_config() -> dict:

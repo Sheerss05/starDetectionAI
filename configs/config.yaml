@@ -22,6 +22,7 @@ star_extraction:
 # ── YOLO ──────────────────────────────────────
 yolo:
   model_weights: "models/yolo/constellation_yolo.pt"
+  download_url: ""               # optional direct URL for auto-download in deployment
   pretrained_base: "yolov8m.pt"    # base weights for fine-tuning
   img_size: 640
   conf_threshold: 0.30
@@ -32,6 +33,7 @@ yolo:
 # ── DETR ──────────────────────────────────────
 detr:
   model_weights: "models/detr/constellation_detr.pt"
+  download_url: ""               # optional direct URL for auto-download in deployment
   pretrained_base: "facebook/detr-resnet-50"
   img_size: 800
   conf_threshold: 0.30
@@ -43,6 +45,7 @@ detr:
 # ── RCNN ──────────────────────────────────────
 rcnn:
   model_weights: "models/rcnn/constellation_rcnn.pt"
+  download_url: ""               # optional direct URL for auto-download in deployment
   pretrained_base: "fasterrcnn_resnet50_fpn"
   img_size: 800
   conf_threshold: 0.30

@@ -100,6 +100,28 @@ Ensure trained model weights are in place:
 
 ## Troubleshooting
 
+### Deployment runs but detects nothing
+
+If your trained `.pt` files are too large to commit to GitHub, host them externally
+(for example Hugging Face model repo, GitHub Releases assets, S3, or direct file URL)
+and provide URLs in Streamlit Cloud secrets.
+
+The app auto-downloads missing weights at startup.
+
+Add this in Streamlit Cloud -> Settings -> Secrets:
+
+```toml
+[model_urls]
+yolo = "https://your-host/path/constellation_yolo.pt"
+detr = "https://your-host/path/constellation_detr.pt"
+rcnn = "https://your-host/path/constellation_rcnn.pt"
+```
+
+Notes:
+- URLs must be direct downloadable links (HTTP/HTTPS).
+- Files are downloaded to paths defined in `configs/config.yaml` under each model `model_weights`.
+- If a URL is missing, that detector falls back to base/random weights and results may be meaningless.
+
 ### App won't start
 ```powershell
 # Reinstall streamlit
