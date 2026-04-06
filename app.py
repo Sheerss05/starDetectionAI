@@ -4,9 +4,9 @@ Main Streamlit Application
 """
 
 import streamlit as st
-import cv2
 import numpy as np
 from PIL import Image
+from PIL import ImageDraw
 import time
 import plotly.graph_objects as go
 import pandas as pd
@@ -14,6 +14,11 @@ from pathlib import Path
 from urllib.parse import urlparse
 from urllib.request import urlretrieve
 import yaml
+
+try:
+    import cv2
+except Exception:
+    cv2 = None
 
 # Import pipeline
 from src.pipeline import ConstellationPipeline, PipelineResult
@@ -215,6 +220,41 @@ def apply_enhancements(
     """Apply Gaussian blur → CLAHE → Gamma → Sharpening to an RGB uint8 image."""
     img = img_rgb.copy()
 
+    if cv2 is None:
+        # Fallback path for environments without OpenCV runtime libs.
+        from skimage import exposure
+        from skimage.filters import gaussian
+
+        if use_blur and blur_kernel > 1:
+            sigma = max(0.1, blur_kernel / 6.0)
+            img = np.clip(gaussian(img, sigma=sigma, channel_axis=2) * 255.0, 0, 255).astype(np.uint8)
+
+        if use_clahe:
+            img_f = img.astype(np.float32) / 255.0
+            img = np.clip(
+                exposure.equalize_adapthist(
+                    img_f,
+                    clip_limit=max(0.001, clahe_clip / 100.0),
+                    kernel_size=(clahe_tile, clahe_tile),
+                ) * 255.0,
+                0,
+                255,
+            ).astype(np.uint8)
+
+        if use_gamma and abs(gamma - 1.0) > 1e-3:
+            inv_gamma = 1.0 / gamma
+            table = np.array(
+                [((i / 255.0) ** inv_gamma) * 255 for i in range(256)], dtype=np.uint8
+            )
+            img = table[img]
+
+        if use_sharpen and sharpen_strength > 0:
+            blur = np.clip(gaussian(img, sigma=1.0, channel_axis=2) * 255.0, 0, 255).astype(np.float32)
+            img_f = img.astype(np.float32)
+            img = np.clip(img_f * (1.0 + sharpen_strength) - blur * sharpen_strength, 0, 255).astype(np.uint8)
+
+        return img
+
     # 1. Gaussian Blur — remove noise before contrast boosting
     if use_blur and blur_kernel > 1:
         img = cv2.GaussianBlur(img, (blur_kernel, blur_kernel), sigmaX=0)
@@ -259,6 +299,18 @@ PALETTE = [
 
 
 def draw_boxes(base_img: np.ndarray, detections, palette=PALETTE) -> np.ndarray:
+    if cv2 is None:
+        pil = Image.fromarray(base_img.astype(np.uint8))
+        draw = ImageDraw.Draw(pil)
+        for idx, det in enumerate(detections):
+            x1, y1, x2, y2 = map(int, det.bbox)
+            color = palette[idx % len(palette)]
+            txt = f"{det.label.replace('_', ' ').title()}  {det.confidence:.0%}"
+            draw.rectangle([(x1, y1), (x2, y2)], outline=color, width=2)
+            draw.rectangle([(x1, max(0, y1 - 18)), (x1 + 220, y1)], fill=color)
+            draw.text((x1 + 4, max(0, y1 - 16)), txt, fill=(15, 23, 42))
+        return np.array(pil)
+
     img = base_img.copy()
     font = cv2.FONT_HERSHEY_SIMPLEX
     for idx, det in enumerate(detections):
@@ -370,6 +422,8 @@ def main():
 
         st.subheader("Model Selection")
         st.caption("Choose which detectors to run:")
+        if cv2 is None:
+            st.warning("OpenCV not available in runtime. Using fallback image pipeline.")
 
         use_yolo = st.checkbox("🎯 YOLO Detector", value=True)
         if use_yolo:
@@ -485,9 +539,12 @@ def main():
                 image = Image.open(uploaded_file)
                 st.session_state.uploaded_image = np.array(image)
                 if st.session_state.uploaded_image.ndim == 3:
-                    st.session_state.uploaded_image_bgr = cv2.cvtColor(
-                        st.session_state.uploaded_image, cv2.COLOR_RGB2BGR
-                    )
+                    if cv2 is not None:
+                        st.session_state.uploaded_image_bgr = cv2.cvtColor(
+                            st.session_state.uploaded_image, cv2.COLOR_RGB2BGR
+                        )
+                    else:
+                        st.session_state.uploaded_image_bgr = st.session_state.uploaded_image[:, :, ::-1]
                 else:
                     st.session_state.uploaded_image_bgr = st.session_state.uploaded_image
 
@@ -510,10 +567,15 @@ def main():
                                 st.session_state.pipeline.fusion.min_agreement = min_agreement
                             # Apply CLAHE + blur settings to preprocessor
                             st.session_state.pipeline.preprocessor.gaussian_kernel = blur_kernel
-                            st.session_state.pipeline.preprocessor.clahe = cv2.createCLAHE(
-                                clipLimit=clahe_clip if use_clahe else 0.0,
-                                tileGridSize=(clahe_tile, clahe_tile),
-                            )
+                            if cv2 is not None:
+                                st.session_state.pipeline.preprocessor.clahe = cv2.createCLAHE(
+                                    clipLimit=clahe_clip if use_clahe else 0.0,
+                                    tileGridSize=(clahe_tile, clahe_tile),
+                                )
+                            else:
+                                st.session_state.pipeline.preprocessor.clahe = None
+                                st.session_state.pipeline.preprocessor.clahe_clip = clahe_clip if use_clahe else 0.0
+                                st.session_state.pipeline.preprocessor.clahe_tile = (clahe_tile, clahe_tile)
                             if use_yolo:
                                 st.session_state.pipeline.yolo.conf_threshold = yolo_conf
                             if use_detr:
@@ -544,7 +606,7 @@ def main():
                                 use_gamma=use_gamma, gamma=gamma,
                                 use_sharpen=use_sharpen, sharpen_strength=sharpen_strength,
                             )
-                            _input_bgr = cv2.cvtColor(_input_rgb, cv2.COLOR_RGB2BGR)
+                            _input_bgr = cv2.cvtColor(_input_rgb, cv2.COLOR_RGB2BGR) if cv2 is not None else _input_rgb
                             result = st.session_state.pipeline.run(
                                 _input_bgr,
                                 use_yolo=use_yolo,

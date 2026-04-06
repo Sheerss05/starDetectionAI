@@ -16,10 +16,17 @@ Pipeline:
 
 from __future__ import annotations
 
-import cv2
 import numpy as np
 from pathlib import Path
 from typing import Union, Tuple
+from PIL import Image
+from skimage import color, exposure, transform
+from skimage.filters import gaussian
+
+try:
+    import cv2
+except Exception:
+    cv2 = None
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -55,9 +62,11 @@ class Preprocessor:
     ) -> None:
         self.target_size = target_size          # (H, W)
         self.gaussian_kernel = gaussian_kernel
-        self.clahe = cv2.createCLAHE(
-            clipLimit=clahe_clip,
-            tileGridSize=clahe_tile,
+        self.clahe_clip = clahe_clip
+        self.clahe_tile = clahe_tile
+        self.clahe = (
+            cv2.createCLAHE(clipLimit=clahe_clip, tileGridSize=clahe_tile)
+            if cv2 is not None else None
         )
         self.keep_rgb = keep_rgb
 
@@ -81,6 +90,9 @@ class Preprocessor:
         original_rgb : np.ndarray uint8
             The original image resized to target_size — used for visualisation.
         """
+        if cv2 is None:
+            return self._process_no_cv2(source)
+
         img = self._load(source)                       # (H, W, 3) uint8 BGR
         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
@@ -124,6 +136,52 @@ class Preprocessor:
 
         return processed, original_rgb
 
+    def _process_no_cv2(
+        self,
+        source: Union[str, Path, np.ndarray],
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Fallback preprocessing using PIL + scikit-image when cv2 is unavailable."""
+        img_rgb = self._load_no_cv2(source)
+        img_resized, original_rgb = self._letterbox_no_cv2(img_rgb, self.target_size)
+
+        grey = color.rgb2gray(img_resized).astype(np.float32)
+
+        if self.clahe_clip > 0:
+            grey_clahe = exposure.equalize_adapthist(
+                grey,
+                clip_limit=max(0.001, self.clahe_clip / 100.0),
+                kernel_size=self.clahe_tile,
+            )
+        else:
+            grey_clahe = grey
+
+        if self.gaussian_kernel > 1:
+            sigma = max(0.1, self.gaussian_kernel / 6.0)
+            grey_clahe = gaussian(grey_clahe, sigma=sigma)
+
+        grey_u8 = np.clip(grey_clahe * 255.0, 0, 255).astype(np.uint8)
+        grey_norm = grey_u8.astype(np.float32) / 255.0
+
+        if self.keep_rgb:
+            img_f = img_resized.astype(np.float32) / 255.0
+            img_lab = color.rgb2lab(img_f)
+            img_lab[:, :, 0] = (grey_u8.astype(np.float32) / 255.0) * 100.0
+            img_enhanced = np.clip(color.lab2rgb(img_lab) * 255.0, 0, 255).astype(np.uint8)
+
+            if self.gaussian_kernel > 1:
+                sigma = max(0.1, self.gaussian_kernel / 6.0)
+                img_enhanced = np.clip(
+                    gaussian(img_enhanced, sigma=sigma, channel_axis=2) * 255.0,
+                    0,
+                    255,
+                ).astype(np.uint8)
+
+            processed = img_enhanced.astype(np.float32) / 255.0
+        else:
+            processed = grey_norm[:, :, np.newaxis]
+
+        return processed, original_rgb
+
     def process_batch(
         self,
         sources: list[Union[str, Path, np.ndarray]],
@@ -162,6 +220,21 @@ class Preprocessor:
         return img
 
     @staticmethod
+    def _load_no_cv2(source: Union[str, Path, np.ndarray]) -> np.ndarray:
+        """Load image as RGB uint8 without using cv2."""
+        if isinstance(source, np.ndarray):
+            img = source.copy()
+            if img.ndim == 2:
+                img = np.stack([img, img, img], axis=-1)
+            elif img.shape[2] == 4:
+                img = img[:, :, :3]
+            return img.astype(np.uint8)
+        path = Path(source)
+        if not path.exists():
+            raise FileNotFoundError(f"Image not found: {path}")
+        return np.array(Image.open(path).convert("RGB"), dtype=np.uint8)
+
+    @staticmethod
     def _letterbox(
         img: np.ndarray,
         target_size: Tuple[int, int],
@@ -191,6 +264,39 @@ class Preprocessor:
             pad_top, pad_bottom, pad_left, pad_right,
             cv2.BORDER_CONSTANT,
             value=(fill_color, fill_color, fill_color),
+        )
+        return padded, resized
+
+    @staticmethod
+    def _letterbox_no_cv2(
+        img: np.ndarray,
+        target_size: Tuple[int, int],
+        fill_color: int = 0,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Resize with aspect ratio and pad using numpy/skimage fallback."""
+        th, tw = target_size
+        h, w = img.shape[:2]
+        scale = min(tw / w, th / h)
+        new_w, new_h = int(w * scale), int(h * scale)
+
+        resized = transform.resize(
+            img,
+            (new_h, new_w, 3),
+            order=1,
+            anti_aliasing=True,
+            preserve_range=True,
+        ).astype(np.uint8)
+
+        pad_top = (th - new_h) // 2
+        pad_bottom = th - new_h - pad_top
+        pad_left = (tw - new_w) // 2
+        pad_right = tw - new_w - pad_left
+
+        padded = np.pad(
+            resized,
+            ((pad_top, pad_bottom), (pad_left, pad_right), (0, 0)),
+            mode="constant",
+            constant_values=fill_color,
         )
         return padded, resized
 

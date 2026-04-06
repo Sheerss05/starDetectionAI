@@ -16,8 +16,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-import cv2
 import numpy as np
+from PIL import Image
+
+try:
+    import cv2
+except Exception:
+    cv2 = None
 
 from src.yolo_detector import Detection
 from src.star_extraction import Star
@@ -77,6 +82,9 @@ def draw_detections(
     if img.dtype != np.uint8:
         img = (np.clip(img, 0, 1) * 255).astype(np.uint8)
 
+    if cv2 is None:
+        return img
+
     overlay = img.copy()
 
     label_set = list({d.label for d in detections})
@@ -130,6 +138,9 @@ def draw_stars(
     if img.dtype != np.uint8:
         img = (np.clip(img, 0, 1) * 255).astype(np.uint8)
 
+    if cv2 is None:
+        return img
+
     for star in stars:
         cx, cy = int(star.x), int(star.y)
         r = max(1, int(star.sigma * 1.5))
@@ -157,6 +168,9 @@ def draw_graph(
     img = image.copy()
     if img.dtype != np.uint8:
         img = (np.clip(img, 0, 1) * 255).astype(np.uint8)
+
+    if cv2 is None:
+        return img
 
     # Draw edges first (below nodes)
     seen = set()
@@ -264,14 +278,19 @@ class ResultVisualizer:
         out_path = Path(path)
         out_path.parent.mkdir(parents=True, exist_ok=True)
 
-        if convert_to_bgr:
-            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+        if cv2 is not None:
+            if convert_to_bgr:
+                image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+            cv2.imwrite(str(out_path), image)
+            return
 
-        cv2.imwrite(str(out_path), image)
+        Image.fromarray(image.astype(np.uint8)).save(out_path)
 
     @staticmethod
     def show(image: np.ndarray, window_title: str = "Constellation Detection") -> None:
         """Display image in an OpenCV window (blocks until key press)."""
+        if cv2 is None:
+            raise RuntimeError("OpenCV runtime is unavailable in this environment.")
         bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR) if image.shape[2] == 3 else image
         cv2.imshow(window_title, bgr)
         cv2.waitKey(0)
