@@ -7,6 +7,8 @@ import streamlit as st
 import numpy as np
 from PIL import Image
 from PIL import ImageDraw
+from PIL import ImageFilter
+from PIL import ImageOps
 import time
 import json
 import plotly.graph_objects as go
@@ -609,38 +611,36 @@ def apply_enhancements(
 
     if cv2 is None:
         # Fallback path for environments without OpenCV runtime libs.
-        from skimage import exposure
-        from skimage.filters import gaussian
+        pil_img = Image.fromarray(img.astype(np.uint8))
 
         if use_blur and blur_kernel > 1:
-            sigma = max(0.1, blur_kernel / 6.0)
-            img = np.clip(gaussian(img, sigma=sigma, channel_axis=2) * 255.0, 0, 255).astype(np.uint8)
+            radius = max(0.1, blur_kernel / 6.0)
+            pil_img = pil_img.filter(ImageFilter.GaussianBlur(radius=radius))
 
         if use_clahe:
-            img_f = img.astype(np.float32) / 255.0
-            img = np.clip(
-                exposure.equalize_adapthist(
-                    img_f,
-                    clip_limit=max(0.001, clahe_clip / 100.0),
-                    kernel_size=(clahe_tile, clahe_tile),
-                ) * 255.0,
-                0,
-                255,
-            ).astype(np.uint8)
+            # Approximate CLAHE safely without extra dependencies.
+            r, g, b = pil_img.split()
+            r = ImageOps.equalize(r)
+            g = ImageOps.equalize(g)
+            b = ImageOps.equalize(b)
+            pil_img = Image.merge("RGB", (r, g, b))
 
         if use_gamma and abs(gamma - 1.0) > 1e-3:
             inv_gamma = 1.0 / gamma
             table = np.array(
                 [((i / 255.0) ** inv_gamma) * 255 for i in range(256)], dtype=np.uint8
             )
+            img = np.asarray(pil_img)
             img = table[img]
+            pil_img = Image.fromarray(img)
 
         if use_sharpen and sharpen_strength > 0:
-            blur = np.clip(gaussian(img, sigma=1.0, channel_axis=2) * 255.0, 0, 255).astype(np.float32)
-            img_f = img.astype(np.float32)
-            img = np.clip(img_f * (1.0 + sharpen_strength) - blur * sharpen_strength, 0, 255).astype(np.uint8)
+            sharpness = 1.0 + float(sharpen_strength)
+            pil_img = pil_img.filter(
+                ImageFilter.UnsharpMask(radius=1, percent=int(150 * sharpness), threshold=3)
+            )
 
-        return img
+        return np.asarray(pil_img, dtype=np.uint8)
 
     # 1. Gaussian Blur — remove noise before contrast boosting
     if use_blur and blur_kernel > 1:
