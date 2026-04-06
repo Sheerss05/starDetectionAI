@@ -19,7 +19,12 @@ from dataclasses import dataclass
 from typing import List, Tuple
 
 import numpy as np
-from skimage.feature import blob_log, blob_dog
+
+try:
+    from skimage.feature import blob_log, blob_dog
+except Exception:
+    blob_log = None
+    blob_dog = None
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -143,6 +148,9 @@ class StarExtractor:
 
     def _detect_blobs(self, grey: np.ndarray) -> np.ndarray:
         """Run LoG or DoG and return raw blob array."""
+        if blob_log is None or blob_dog is None:
+            return self._detect_blobs_numpy(grey)
+
         kwargs = dict(
             min_sigma=self.min_sigma,
             max_sigma=self.max_sigma,
@@ -161,6 +169,38 @@ class StarExtractor:
         if self.method == "log":
             blobs[:, 2] = blobs[:, 2] * (2 ** 0.5)
 
+        return blobs
+
+    def _detect_blobs_numpy(self, grey: np.ndarray) -> np.ndarray:
+        """Simple local-maxima fallback when scikit-image is unavailable."""
+        h, w = grey.shape
+        if h < 3 or w < 3:
+            return np.empty((0, 3), dtype=np.float32)
+
+        # Dynamic threshold keeps only bright candidates.
+        thr = max(self.threshold, float(np.quantile(grey, 0.995)))
+        center = grey[1:-1, 1:-1]
+        mask = center >= thr
+
+        # 8-neighborhood non-maximum suppression.
+        neighbors = [
+            grey[0:-2, 0:-2], grey[0:-2, 1:-1], grey[0:-2, 2:],
+            grey[1:-1, 0:-2],                     grey[1:-1, 2:],
+            grey[2:,   0:-2], grey[2:,   1:-1], grey[2:,   2:],
+        ]
+        for n in neighbors:
+            mask &= center >= n
+
+        ys, xs = np.where(mask)
+        if ys.size == 0:
+            return np.empty((0, 3), dtype=np.float32)
+
+        sigma = np.clip((self.min_sigma + self.max_sigma) / 2.0, 1.0, 6.0)
+        blobs = np.column_stack([
+            ys.astype(np.float32) + 1.0,
+            xs.astype(np.float32) + 1.0,
+            np.full(ys.shape[0], sigma, dtype=np.float32),
+        ])
         return blobs
 
     @staticmethod

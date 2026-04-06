@@ -19,9 +19,7 @@ from __future__ import annotations
 import numpy as np
 from pathlib import Path
 from typing import Union, Tuple
-from PIL import Image
-from skimage import color, exposure, transform
-from skimage.filters import gaussian
+from PIL import Image, ImageEnhance, ImageFilter
 
 try:
     import cv2
@@ -140,41 +138,33 @@ class Preprocessor:
         self,
         source: Union[str, Path, np.ndarray],
     ) -> Tuple[np.ndarray, np.ndarray]:
-        """Fallback preprocessing using PIL + scikit-image when cv2 is unavailable."""
+        """Fallback preprocessing using PIL + NumPy when cv2 is unavailable."""
         img_rgb = self._load_no_cv2(source)
         img_resized, original_rgb = self._letterbox_no_cv2(img_rgb, self.target_size)
 
-        grey = color.rgb2gray(img_resized).astype(np.float32)
+        pil_img = Image.fromarray(img_resized)
+        grey_img = pil_img.convert("L")
 
         if self.clahe_clip > 0:
-            grey_clahe = exposure.equalize_adapthist(
-                grey,
-                clip_limit=max(0.001, self.clahe_clip / 100.0),
-                kernel_size=self.clahe_tile,
-            )
-        else:
-            grey_clahe = grey
+            # Approximate local contrast enhancement without OpenCV/skimage.
+            contrast_factor = 1.0 + min(3.0, self.clahe_clip / 2.0)
+            grey_img = ImageEnhance.Contrast(grey_img).enhance(contrast_factor)
 
         if self.gaussian_kernel > 1:
-            sigma = max(0.1, self.gaussian_kernel / 6.0)
-            grey_clahe = gaussian(grey_clahe, sigma=sigma)
+            radius = max(0.1, self.gaussian_kernel / 3.0)
+            grey_img = grey_img.filter(ImageFilter.GaussianBlur(radius=radius))
 
-        grey_u8 = np.clip(grey_clahe * 255.0, 0, 255).astype(np.uint8)
+        grey_u8 = np.array(grey_img, dtype=np.uint8)
         grey_norm = grey_u8.astype(np.float32) / 255.0
 
         if self.keep_rgb:
-            img_f = img_resized.astype(np.float32) / 255.0
-            img_lab = color.rgb2lab(img_f)
-            img_lab[:, :, 0] = (grey_u8.astype(np.float32) / 255.0) * 100.0
-            img_enhanced = np.clip(color.lab2rgb(img_lab) * 255.0, 0, 255).astype(np.uint8)
-
+            img_enhanced = np.array(pil_img, dtype=np.uint8)
             if self.gaussian_kernel > 1:
-                sigma = max(0.1, self.gaussian_kernel / 6.0)
-                img_enhanced = np.clip(
-                    gaussian(img_enhanced, sigma=sigma, channel_axis=2) * 255.0,
-                    0,
-                    255,
-                ).astype(np.uint8)
+                radius = max(0.1, self.gaussian_kernel / 3.0)
+                img_enhanced = np.array(
+                    Image.fromarray(img_enhanced).filter(ImageFilter.GaussianBlur(radius=radius)),
+                    dtype=np.uint8,
+                )
 
             processed = img_enhanced.astype(np.float32) / 255.0
         else:
@@ -273,19 +263,16 @@ class Preprocessor:
         target_size: Tuple[int, int],
         fill_color: int = 0,
     ) -> Tuple[np.ndarray, np.ndarray]:
-        """Resize with aspect ratio and pad using numpy/skimage fallback."""
+        """Resize with aspect ratio and pad using PIL fallback."""
         th, tw = target_size
         h, w = img.shape[:2]
         scale = min(tw / w, th / h)
         new_w, new_h = int(w * scale), int(h * scale)
 
-        resized = transform.resize(
-            img,
-            (new_h, new_w, 3),
-            order=1,
-            anti_aliasing=True,
-            preserve_range=True,
-        ).astype(np.uint8)
+        resized = np.array(
+            Image.fromarray(img.astype(np.uint8)).resize((new_w, new_h), Image.Resampling.BILINEAR),
+            dtype=np.uint8,
+        )
 
         pad_top = (th - new_h) // 2
         pad_bottom = th - new_h - pad_top
