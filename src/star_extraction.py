@@ -178,7 +178,9 @@ class StarExtractor:
             return np.empty((0, 3), dtype=np.float32)
 
         # Dynamic threshold keeps only bright candidates.
-        thr = max(self.threshold, float(np.quantile(grey, 0.995)))
+        # The fallback is intentionally conservative to avoid thousands of noisy peaks
+        # when scikit-image is unavailable in deployment.
+        thr = max(self.threshold, float(np.quantile(grey, 0.999)))
         center = grey[1:-1, 1:-1]
         mask = center >= thr
 
@@ -196,11 +198,19 @@ class StarExtractor:
             return np.empty((0, 3), dtype=np.float32)
 
         sigma = np.clip((self.min_sigma + self.max_sigma) / 2.0, 1.0, 6.0)
+        brightness = grey[ys + 1, xs + 1]
+        order = np.argsort(brightness)[::-1]
+
         blobs = np.column_stack([
             ys.astype(np.float32) + 1.0,
             xs.astype(np.float32) + 1.0,
             np.full(ys.shape[0], sigma, dtype=np.float32),
-        ])
+        ])[order]
+
+        # Keep only the brightest local maxima so deployment fallback remains
+        # visually comparable to the normal blob detector.
+        max_fallback_stars = min(300, blobs.shape[0])
+        blobs = blobs[:max_fallback_stars]
         return blobs
 
     @staticmethod

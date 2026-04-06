@@ -9,6 +9,7 @@ pandas>=2.0.0
 plotly>=5.17.0
 tqdm>=4.65.0
 networkx>=3.1
+scikit-image>=0.22.0
 
 # CV / DL inference stack
 opencv-python-headless>=4.8.0
