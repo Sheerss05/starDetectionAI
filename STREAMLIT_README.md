@@ -100,6 +100,23 @@ Ensure trained model weights are in place:
 
 ## Troubleshooting
 
+### ImportError on `numpy` or `cv2` in Streamlit Cloud
+
+If deployment starts but fails at app import, it usually means the cloud environment
+did not install compatible wheels.
+
+Use these project files exactly:
+- `requirements.txt` (cloud-safe inference dependencies)
+- `runtime.txt` with `python-3.11`
+- `packages.txt` for Linux runtime libs
+
+Then fully redeploy (not just refresh):
+1. Push latest commit
+2. In Streamlit Cloud, verify correct repo + branch + app path
+3. Clear cache and reboot app
+
+If logs still show Python 3.14, your app is deploying a different branch/commit.
+
 ### Deployment runs but detects nothing
 
 If your trained `.pt` files are too large to commit to GitHub, host them externally
