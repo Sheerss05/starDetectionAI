@@ -215,9 +215,6 @@ def _ensure_model_weights(config_path: str) -> None:
         except Exception as exc:
             st.warning(f"Could not download {model_key.upper()} weights: {exc}")
 
-    if downloaded:
-        st.info("Downloaded model weights: " + ", ".join(downloaded))
-
     if missing_without_url:
         msg = (
             "Missing trained model files for: "
