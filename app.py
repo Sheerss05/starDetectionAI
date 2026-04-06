@@ -950,6 +950,14 @@ def main():
                         if st.session_state.pipeline is None:
                             st.error("❌ Failed to load pipeline. Check logs.")
                         else:
+                            if use_yolo and getattr(st.session_state.pipeline, "yolo", None) is not None:
+                                if getattr(st.session_state.pipeline.yolo, "model", None) is None:
+                                    st.warning(
+                                        "YOLO fine-tuned weights are missing on this deployment. "
+                                        "YOLO will be skipped until the trained checkpoint is provided."
+                                    )
+                                    use_yolo = False
+
                             if use_fusion:
                                 st.session_state.pipeline.fusion.min_agreement = min_agreement
                             # Apply CLAHE + blur settings to preprocessor

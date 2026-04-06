@@ -188,15 +188,30 @@ class YOLODetector:
             return None
 
         weights_path = Path(weights_path)
-        if weights_path.exists():
-            logger.info(f"Loading YOLO weights from {weights_path}")
-            model = YOLO(str(weights_path))
-        else:
-            logger.warning(
-                f"YOLO weights not found at {weights_path}. "
-                f"Loading base model '{base}' — predictions will be meaningless."
+        candidate_paths = [weights_path]
+        if weights_path.name == "constellation_yolo.pt":
+            candidate_paths.extend([
+                weights_path.parent / "constellation_run" / "weights" / "best.pt",
+                weights_path.parent / "constellation_run" / "weights" / "last.pt",
+            ])
+        candidate_paths.extend([
+            weights_path.parent / "best.pt",
+            weights_path.parent / "last.pt",
+        ])
+
+        model = None
+        for candidate in candidate_paths:
+            if candidate.exists():
+                logger.info(f"Loading YOLO weights from {candidate}")
+                model = YOLO(str(candidate))
+                break
+
+        if model is None:
+            logger.error(
+                f"YOLO weights not found at {weights_path} or common export paths. "
+                "Provide the fine-tuned constellation checkpoint (or a direct download URL) before enabling YOLO."
             )
-            model = YOLO(base)
+            return None
 
         # Use class names embedded in the checkpoint — these are the exact names
         # used during training and must override any config-supplied names.
