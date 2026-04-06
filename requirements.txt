@@ -8,6 +8,7 @@ ultralytics>=8.0.0
 
 # DETR (HuggingFace Transformers)
 transformers>=4.35.0
+timm>=0.9.0
 
 # Image Processing
 # Use headless build for cloud/server environments (avoids libGL GUI dependency issues)
