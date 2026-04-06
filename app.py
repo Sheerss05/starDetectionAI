@@ -13,6 +13,7 @@ import pandas as pd
 from pathlib import Path
 from urllib.parse import urlparse
 from urllib.request import urlretrieve
+from collections.abc import Mapping
 import yaml
 
 try:
@@ -125,9 +126,25 @@ def _is_http_url(url: str) -> bool:
         return False
 
 
+def _normalize_model_url(url: str) -> str:
+    """Convert known non-direct model links to direct downloadable URLs."""
+    if not isinstance(url, str):
+        return ""
+    u = url.strip()
+    if not u:
+        return ""
+
+    # Hugging Face web URLs often use /blob/ or /raw/; downloads should use /resolve/.
+    if "huggingface.co" in u:
+        u = u.replace("/blob/", "/resolve/")
+        u = u.replace("/raw/", "/resolve/")
+
+    return u
+
+
 def _download_file(url: str, dest: Path) -> None:
     dest.parent.mkdir(parents=True, exist_ok=True)
-    urlretrieve(url, dest)
+    urlretrieve(_normalize_model_url(url), dest)
 
 
 def _get_model_download_url(model_key: str, cfg_section: dict) -> str:
@@ -136,19 +153,28 @@ def _get_model_download_url(model_key: str, cfg_section: dict) -> str:
     # 2) Environment variables via st.secrets root entries
     # 3) config.yaml per-model download_url
     model_urls = st.secrets.get("model_urls", {})
-    if isinstance(model_urls, dict):
+    if isinstance(model_urls, Mapping):
         url_from_secrets = model_urls.get(model_key)
-        if isinstance(url_from_secrets, str) and _is_http_url(url_from_secrets):
+    else:
+        # Streamlit may expose section objects that behave like attributes.
+        url_from_secrets = getattr(model_urls, model_key, None)
+    if isinstance(url_from_secrets, str):
+        url_from_secrets = _normalize_model_url(url_from_secrets)
+        if _is_http_url(url_from_secrets):
             return url_from_secrets
 
     env_key = f"STARAI_{model_key.upper()}_URL"
     url_from_root_secrets = st.secrets.get(env_key)
-    if isinstance(url_from_root_secrets, str) and _is_http_url(url_from_root_secrets):
-        return url_from_root_secrets
+    if isinstance(url_from_root_secrets, str):
+        url_from_root_secrets = _normalize_model_url(url_from_root_secrets)
+        if _is_http_url(url_from_root_secrets):
+            return url_from_root_secrets
 
-    cfg_url = cfg_section.get("download_url") if isinstance(cfg_section, dict) else None
-    if isinstance(cfg_url, str) and _is_http_url(cfg_url):
-        return cfg_url
+    cfg_url = cfg_section.get("download_url") if isinstance(cfg_section, Mapping) else None
+    if isinstance(cfg_url, str):
+        cfg_url = _normalize_model_url(cfg_url)
+        if _is_http_url(cfg_url):
+            return cfg_url
 
     return ""
 
