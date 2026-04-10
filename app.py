@@ -29,7 +29,7 @@ from src.pipeline import ConstellationPipeline, PipelineResult
 
 # ── Page configuration ────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="Star AI - Constellation Recognition",
+    page_title="SkyVision - Constellation Recognition",
     page_icon="🌌",
     layout="wide",
     initial_sidebar_state="expanded",
