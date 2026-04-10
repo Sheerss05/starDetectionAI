@@ -65,7 +65,6 @@ EXCLUDED_LABELS: set = {"pleiades", "moon"}
 
 # ── Constellation metadata ────────────────────────────────────────────────────
 CONSTELLATION_INFO = {
-    "aquarius":      "Aquarius — the Water-Bearer; one of the 17 deployed classes",
     "aquila":        "Aquila — the Eagle; home of bright star Altair",
     "bootes":        "Boötes — the Herdsman; contains Arcturus",
     "cassiopeia":    "Cassiopeia — the Queen; W-shaped in the north",
@@ -74,14 +73,10 @@ CONSTELLATION_INFO = {
     "leo":           "Leo — the Lion; contains bright star Regulus",
     "lyra":          "Lyra — the Lyre; home of Vega, one of the nearest stars",
     "orion":         "Orion — the Hunter; Betelgeuse and Rigel",
-    "pegasus":       "Pegasus — the Winged Horse; autumn sky pattern",
-    "perseus":       "Perseus — the Hero; linked to the Perseid meteor shower",
     "sagittarius":   "Sagittarius — the Archer; points to the galactic centre",
     "scorpius":      "Scorpius — the Scorpion; contains red giant Antares",
     "taurus":        "Taurus — the Bull; contains Pleiades and Aldebaran",
     "ursa_major":    "Ursa Major — the Great Bear; Big Dipper asterism",
-    "ursa_minor":    "Ursa Minor — the Little Bear; home of Polaris",
-    "virgo":         "Virgo — the Maiden; one of the largest zodiac constellations",
 }
 
 # ── Session state ─────────────────────────────────────────────────────────────

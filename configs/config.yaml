@@ -100,7 +100,6 @@ train_rcnn:
 
 # ── Constellation labels (dataset categories) ─
 constellations:
-  - aquarius      # Aquarius (Water-Bearer)
   - aquila        # Aquila (Eagle)
   - bootes        # Boötes (Herdsman)
   - cassiopeia    # Cassiopeia (Queen)
@@ -109,11 +108,7 @@ constellations:
   - leo           # Leo (Lion)
   - lyra          # Lyra (Lyre)
   - orion         # Orion (Hunter)
-  - pegasus       # Pegasus (Winged Horse)
-  - perseus       # Perseus (Hero)
   - sagittarius   # Sagittarius (Archer)
   - scorpius      # Scorpius (Scorpion)
   - taurus        # Taurus (Bull)
   - ursa_major    # Ursa Major (Great Bear)
-  - ursa_minor    # Ursa Minor (Little Bear)
-  - virgo         # Virgo (Maiden)
