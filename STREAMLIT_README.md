@@ -27,7 +27,7 @@ The app will automatically open in your browser at `http://localhost:8501`
 - **Upload & Detect Tab**: Upload sky images and run detection
 - **Detection Details Tab**: View step-by-step pipeline results
 - **Performance Tab**: Analyze confidence scores and GNN validation
-- **About Tab**: Learn about the hybrid pipeline
+- **About Tab**: Learn about the hybrid pipeline, detector scope, and supported constellations
 
 ### ⚙️ Sidebar Controls
 - **Device Selection**: Choose CPU or CUDA

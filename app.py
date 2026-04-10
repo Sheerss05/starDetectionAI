@@ -65,30 +65,23 @@ EXCLUDED_LABELS: set = {"pleiades", "moon"}
 
 # ── Constellation metadata ────────────────────────────────────────────────────
 CONSTELLATION_INFO = {
-    "Gemini-leo":   "Mixed region containing Gemini/Leo stars",
-    "aquila":       "Aquila — the Eagle; home of bright star Altair",
-    "bootes":       "Boötes — the Herdsman; contains Arcturus",
-    "canis_major":  "Canis Major — the Great Dog; home of Sirius",
-    "canis_minor":  "Canis Minor — the Little Dog; contains Procyon",
-    "cassiopeia":   "Cassiopeia — the Queen; W-shaped in the north",
-    "cygnus":       "Cygnus — the Swan; Northern Cross asterism",
-    "gemini":       "Gemini — the Twins; Castor and Pollux stars",
-    "leo":          "Leo — the Lion; contains bright star Regulus",
-    "lyra":         "Lyra — the Lyre; home of Vega, one of nearest stars",
-    "orion":        "Orion — the Hunter; Betelgeuse & Rigel",
-    "sagittarius":  "Sagittarius — the Archer; points to galactic centre",
-    "scorpius":     "Scorpius — the Scorpion; contains red giant Antares",
-    "taurus":       "Taurus — the Bull; contains Pleiades & Aldebaran",
-    "ursa_major":      "Ursa Major — the Great Bear; Big Dipper asterism",
-    "Andromeda":        "Andromeda — the Chained Princess; nearest spiral galaxy",
-    "Centaurus":        "Centaurus — the Centaur; contains Alpha Centauri",
-    "Hydra":            "Hydra — the Water Snake; largest constellation by area",
-    "Draco":            "Draco — the Dragon; circumpolar northern constellation",
-    "Auriga":           "Auriga — the Charioteer; contains bright star Capella",
-    "Canis Major":      "Canis Major — the Great Dog; home of Sirius, brightest star",
-    "Canis Minor":      "Canis Minor — the Little Dog; contains Procyon",
-    "Corona Borealis":  "Corona Borealis — the Northern Crown; semicircular arc",
-    "Ophiuchus":        "Ophiuchus — the Serpent Bearer; straddles the celestial equator",
+    "aquarius":      "Aquarius — the Water-Bearer; one of the 17 deployed classes",
+    "aquila":        "Aquila — the Eagle; home of bright star Altair",
+    "bootes":        "Boötes — the Herdsman; contains Arcturus",
+    "cassiopeia":    "Cassiopeia — the Queen; W-shaped in the north",
+    "cygnus":        "Cygnus — the Swan; Northern Cross asterism",
+    "gemini":        "Gemini — the Twins; Castor and Pollux stars",
+    "leo":           "Leo — the Lion; contains bright star Regulus",
+    "lyra":          "Lyra — the Lyre; home of Vega, one of the nearest stars",
+    "orion":         "Orion — the Hunter; Betelgeuse and Rigel",
+    "pegasus":       "Pegasus — the Winged Horse; autumn sky pattern",
+    "perseus":       "Perseus — the Hero; linked to the Perseid meteor shower",
+    "sagittarius":   "Sagittarius — the Archer; points to the galactic centre",
+    "scorpius":      "Scorpius — the Scorpion; contains red giant Antares",
+    "taurus":        "Taurus — the Bull; contains Pleiades and Aldebaran",
+    "ursa_major":    "Ursa Major — the Great Bear; Big Dipper asterism",
+    "ursa_minor":    "Ursa Minor — the Little Bear; home of Polaris",
+    "virgo":         "Virgo — the Maiden; one of the largest zodiac constellations",
 }
 
 # ── Session state ─────────────────────────────────────────────────────────────
@@ -1914,14 +1907,17 @@ This application uses a **6-step hybrid pipeline** combining three AI detectors:
 
 
         st.markdown("""
-**🔗 Fusion Engine**
-- Combines YOLO + DETR + RCNN detections by label + IoU overlap clustering
-- A detection is accepted if ≥ 2 models agree (IoU ≥ 0.40), or a single model
-  exceeds the high-confidence threshold (≥ 0.85)
+    **🔗 Fusion Engine**
+    - Combines YOLO + DETR + RCNN detections by label + IoU overlap clustering
+    - A detection is accepted if ≥ 2 models agree (IoU ≥ 0.40), or a single model
+      exceeds the high-confidence threshold (≥ 0.85)
 
----
+    ---
 
-#### 🎯 Detectable Constellations
+    #### 🎯 Detectable Constellations
+    The deployed detectors recognize **17 primary constellation classes**.
+    The training dataset covers **up to 88 IAU constellations**, but the active
+    models are fine-tuned on the 17-class subset shown below.
         """)
 
         cols = st.columns(3)

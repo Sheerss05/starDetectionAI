@@ -100,28 +100,20 @@ train_rcnn:
 
 # ── Constellation labels (dataset categories) ─
 constellations:
-  - Gemini-leo    # background/supercategory class
+  - aquarius      # Aquarius (Water-Bearer)
   - aquila        # Aquila (Eagle)
   - bootes        # Boötes (Herdsman)
-  - canis_major   # Canis Major (Great Dog)
-  - canis_minor   # Canis Minor (Little Dog)
   - cassiopeia    # Cassiopeia (Queen)
   - cygnus        # Cygnus (Swan)
   - gemini        # Gemini (Twins)
   - leo           # Leo (Lion)
   - lyra          # Lyra (Lyre)
   - orion         # Orion (Hunter)
+  - pegasus       # Pegasus (Winged Horse)
+  - perseus       # Perseus (Hero)
   - sagittarius   # Sagittarius (Archer)
   - scorpius      # Scorpius (Scorpion)
   - taurus        # Taurus (Bull)
   - ursa_major    # Ursa Major (Great Bear)
-  - Andromeda        # Andromeda
-  - Centaurus         # Centaurus
-  - Hydra             # Hydra
-  - Draco             # Draco
-  - Auriga            # Auriga
-  - Canis Major       # Canis Major
-  - Canis Minor       # Canis Minor
-  - Corona Borealis   # Corona Borealis
-  - Ophiuchus         # Ophiuchus
-  # … remaining 58 IAU constellations follow the same pattern
+  - ursa_minor    # Ursa Minor (Little Bear)
+  - virgo         # Virgo (Maiden)

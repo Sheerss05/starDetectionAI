@@ -36,7 +36,8 @@ Final Constellation Output
 
 ## Supported Constellations
 
-The system is trained on **17 primary classes** with a dataset covering up to 88 IAU constellations:
+The deployed detectors recognize **17 primary classes** with a dataset covering up to 88 IAU constellations.
+Those 17 active classes are:
 
 Orion · Ursa Major · Ursa Minor · Cassiopeia · Cygnus · Leo · Scorpius · Gemini · Taurus · Virgo · Aquila · Perseus · Lyra · Boötes · Pegasus · Sagittarius · Aquarius
 
@@ -123,7 +124,7 @@ Opens automatically at `http://localhost:8501`. The interface provides:
 
 - **Detect tab** — upload a night-sky image, toggle detectors (YOLO / DETR / RCNN), adjust confidence thresholds, and run the full pipeline with a progress indicator.
 - **Performance tab** — confidence score charts and per-model detection breakdowns.
-- **About tab** — pipeline overview and tips.
+- **About tab** — pipeline overview, detector scope, and supported constellations.
 
 Sidebar controls let you enable/disable individual detectors, configure fusion agreement, and tune confidence thresholds per model.
 
