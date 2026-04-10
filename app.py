@@ -67,6 +67,8 @@ EXCLUDED_LABELS: set = {"pleiades", "moon"}
 CONSTELLATION_INFO = {
     "aquila":        "Aquila — the Eagle; home of bright star Altair",
     "bootes":        "Boötes — the Herdsman; contains Arcturus",
+    "canis_major":   "Canis Major — the Great Dog; home of Sirius",
+    "canis_minor":   "Canis Minor — the Little Dog; contains Procyon",
     "cassiopeia":    "Cassiopeia — the Queen; W-shaped in the north",
     "cygnus":        "Cygnus — the Swan; Northern Cross asterism",
     "gemini":        "Gemini — the Twins; Castor and Pollux stars",
@@ -1910,9 +1912,9 @@ This application uses a **6-step hybrid pipeline** combining three AI detectors:
     ---
 
     #### 🎯 Detectable Constellations
-    The deployed detectors recognize **17 primary constellation classes**.
+    The deployed detectors recognize **14 primary constellation classes**.
     The training dataset covers **up to 88 IAU constellations**, but the active
-    models are fine-tuned on the 17-class subset shown below.
+    models are fine-tuned on the 14-class subset shown below.
         """)
 
         cols = st.columns(3)

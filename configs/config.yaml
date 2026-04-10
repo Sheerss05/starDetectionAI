@@ -102,6 +102,8 @@ train_rcnn:
 constellations:
   - aquila        # Aquila (Eagle)
   - bootes        # Boötes (Herdsman)
+  - canis_major   # Canis Major (Great Dog)
+  - canis_minor   # Canis Minor (Little Dog)
   - cassiopeia    # Cassiopeia (Queen)
   - cygnus        # Cygnus (Swan)
   - gemini        # Gemini (Twins)
