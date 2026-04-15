@@ -149,7 +149,12 @@ class DetectionFusion:
             best_conf = max(d.confidence for d in cluster)
 
             rule_agreement  = n_models >= self.min_agreement
-            rule_high_conf  = best_conf >= self.high_conf_threshold
+            # Strict consensus mode: when all 3 models are required,
+            # do not allow single/high-confidence overrides.
+            rule_high_conf  = (
+                self.min_agreement < 3
+                and best_conf >= self.high_conf_threshold
+            )
 
             if not (rule_agreement or rule_high_conf):
                 logger.debug(
