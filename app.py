@@ -883,6 +883,10 @@ def main():
         #else:
         #    blur_kernel = 1
 
+        # Default values when blur UI is disabled
+        use_blur = False
+        blur_kernel = 1
+
         st.markdown("---")
         st.subheader("Fusion Settings")
         use_fusion = st.checkbox("🔗 Enable Fusion", value=True,
