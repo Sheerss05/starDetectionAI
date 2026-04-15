@@ -871,17 +871,17 @@ def main():
             clahe_clip = 0.0
             clahe_tile = 8
 
-        use_blur = st.checkbox(
-            "🌫️ Gaussian Blur (Noise Reduction)", value=False,
-            help="Smooth pixel-level noise before detection.",
-        )
-        if use_blur:
-            blur_kernel = st.select_slider(
-                "Blur Kernel Size", options=[3, 5, 7, 9], value=3, key="blur_kernel",
-                help="Larger kernel = stronger blurring.",
-            )
-        else:
-            blur_kernel = 1
+        #use_blur = st.checkbox(
+        #    "🌫️ Gaussian Blur (Noise Reduction)", value=False,
+        #    help="Smooth pixel-level noise before detection.",
+        #)
+        #if use_blur:
+        #    blur_kernel = st.select_slider(
+        #        "Blur Kernel Size", options=[3, 5, 7, 9], value=3, #key="blur_kernel",
+        #        help="Larger kernel = stronger blurring.",
+        #    )
+        #else:
+        #    blur_kernel = 1
 
         st.markdown("---")
         st.subheader("Fusion Settings")
